@@ -4,4 +4,4 @@
 
 (defn send-purchase-json
   [req]
-  (response/unauthorized "{\"status\": false}"))
+  (response/json {:status true}))

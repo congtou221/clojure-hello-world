@@ -1,5 +1,6 @@
 (ns hello-world.common.response
   (:require [ring.util.response :refer [content-type response]]
+            [cheshire.core :as cjson]
             [clojure.java.io :as io]))
 
 (defn ok
@@ -54,13 +55,13 @@
     :headers {"Location" url}
     :session session}))
 
-;; (defn json
-;;   "200 with JSON body"
-;;   ([] (json))
-;;   ([data]
-;;    {:status 200
-;;     :headers {"Content-Type" "application/json; charset=UTF-8"}
-;;     :body (json/write-str data)}))
+(defn json
+  "200 with JSON body"
+  ([] (cjson/generate-string))
+  ([data]
+   {:status 200
+    :headers {"Content-Type" "application/json; charset=UTF-8"}
+    :body (cjson/generate-string data)}))
 
 (defn html
   "200 with html body"
