@@ -20,10 +20,11 @@
   (:use [ring.adapter.jetty]))
 
 (defroutes app-routes
-   (GET "/" [] "Hello World")
-   (GET "/test" [] purchase-api/send-purchase-json)
-   (route/not-found "Not Found"))
+  (GET "/" [] "Hello World")
+  (GET "/test" [] purchase-api/send-purchase-json)
+  (POST "/test2" [] purchase-api/post-purchase-json)
+  (route/not-found "Not Found"))
 (def app
-   (wrap-defaults app-routes site-defaults))
-
-(run-jetty app {:port 3004})
+   (wrap-defaults app-routes api-defaults))
+;; site-defaults 开启CSRF保护
+(run-jetty app {:port 3003})

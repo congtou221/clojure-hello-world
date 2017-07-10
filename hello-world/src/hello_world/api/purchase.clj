@@ -5,3 +5,7 @@
 (defn send-purchase-json
   [req]
   (response/json {:status true}))
+
+(defn post-purchase-json
+  [req]
+  (response/json {:status false :result false}))
