@@ -16,15 +16,22 @@
   (:require [compojure.core :refer :all]
             [compojure.route :as route]
             [ring.middleware.defaults :refer [wrap-defaults api-defaults site-defaults]]
-            [hello-world.api.purchase :as purchase-api])
-  (:use [ring.adapter.jetty]))
+            [hello-world.api.purchase :as purchase-api]
+            [hello-world.api.log :as log-api])
+  (:use [ring.adapter.jetty]
+        [ring.middleware.json :only [wrap-json-body]]))
 
 (defroutes app-routes
   (GET "/" [] "Hello World")
   (GET "/test" [] purchase-api/send-purchase-json)
   (POST "/test2" [] purchase-api/post-purchase-json)
+  (POST "/loginfo" [] log-api/api-loginfo)
   (route/not-found "Not Found"))
+;; (def app
+;;   (wrap-defaults app-routes api-defaults))
 (def app
-   (wrap-defaults app-routes api-defaults))
+  (-> app-routes
+      (wrap-json-body)
+      (wrap-defaults api-defaults)))
 ;; site-defaults 开启CSRF保护
 (run-jetty app {:port 3003})
