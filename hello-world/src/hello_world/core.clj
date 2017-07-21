@@ -24,7 +24,14 @@
 (defroutes app-routes
   (GET "/" [] "Hello World")
   (GET "/test" [] purchase-api/send-purchase-json)
+  (GET "/merge/input" [] purchase-api/get-merge-input)
   (POST "/test2" [] purchase-api/post-purchase-json)
+  (GET "/increase/input" [] purchase-api/get-increase-input)
+  (POST "/increase" [] purchase-api/post-increase-json)
+  (GET "/holding/input" [] purchase-api/get-holding-input)
+  (POST "/holding" [] purchase-api/post-holding-json)
+(GET "/encourage/input" [] purchase-api/get-encourage-input)
+  (POST "/encourage" [] purchase-api/post-encourage-json)
   (POST "/loginfo" [] log-api/api-loginfo)
   (route/not-found "Not Found"))
 ;; (def app
