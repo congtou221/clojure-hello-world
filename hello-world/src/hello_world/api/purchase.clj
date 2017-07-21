@@ -252,7 +252,7 @@
   (let [
         req-data (:body req)
         secucode (get req-data "股票代码")
-        resp (http/post "https://beta.joudou.com/stockinfogate/commonapi" {:form-params {:secucode secucode :name "eventproc" :evt (cjson/generate-string req-data)} :content-type :json})
+        resp (http/post "https://url/stockinfogate/commonapi" {:form-params {:secucode secucode :name "eventproc" :evt (cjson/generate-string req-data)} :content-type :json})
         ]
     (generateResp req req-data resp)))
 
@@ -281,7 +281,7 @@
   (let [
         req-data (:body req)
         secucode (get req-data "股票代码")
-        ;;resp (http/post "https://beta.joudou.com/stockinfogate/commonapi" {:form-params {:secucode secucode :name "eventproc" :evt (cjson/generate-string req-data)} :content-type :json})
+        ;;resp (http/post "https://url/stockinfogate/commonapi" {:form-params {:secucode secucode :name "eventproc" :evt (cjson/generate-string req-data)} :content-type :json})
         ]
     (spit "/tmp/evt.json" req-data)
     (response/json sample-input)))
@@ -346,7 +346,7 @@
   (let [
         req-data (:body req)
         secucode (get req-data "股票代码")
-        ;;resp (http/post "https://beta.joudou.com/stockinfogate/commonapi" {:form-params {:secucode secucode :name "eventproc" :evt (cjson/generate-string req-data)} :content-type :json})
+        ;;resp (http/post "https://url/stockinfogate/commonapi" {:form-params {:secucode secucode :name "eventproc" :evt (cjson/generate-string req-data)} :content-type :json})
         ]
     (spit "/tmp/evt.json" req-data)
     (response/json sample-input)))
