@@ -1,25 +1,30 @@
-;; (ns test-clojure.core
-;;   (:require [clj-http.util :as sql])
-;;   (:require [clojure.java.jdbc :as jdbc]))
-
-;; (defn foo
-;;   "I don't do a whole lot."
-;;   [x]
-;;   (println x "Hello, World!"))
-
-;; (defn -main
-;;   [& args]
-;;   (println "HELLO, WORLD!"))
-
-
 (ns hello-world.core
   (:require [compojure.core :refer :all]
             [compojure.route :as route]
             [ring.middleware.defaults :refer [wrap-defaults api-defaults site-defaults]]
+            [ring.middleware.session.memory :refer [memory-store]]
+            [noir.session :as session]
             [hello-world.api.purchase :as purchase-api]
-            [hello-world.api.log :as log-api])
+            [hello-world.api.release :as release-api]
+            [hello-world.api.log :as log-api]
+            [hello-world.api.check-login :as checklogin-api])
   (:use [ring.adapter.jetty]
         [ring.middleware.json :only [wrap-json-body]]))
+
+;; (defn create-session-action [req]
+;;   (let [params (:params req)
+;;         username (get params :username)
+;;         password (get params :password)]
+;;     (do ;;(log-api/api-loginfo req)
+;;         (session/put! :user (str username password))
+
+;;     (response/json {:status true})
+
+;;         )
+;;     ;;    (log-api/api-loginfo req)
+
+;;     )
+;;   )
 
 (defroutes app-routes
   (GET "/" [] "Hello World")
@@ -30,15 +35,20 @@
   (POST "/increase" [] purchase-api/post-increase-json)
   (GET "/holding/input" [] purchase-api/get-holding-input)
   (POST "/holding" [] purchase-api/post-holding-json)
-(GET "/encourage/input" [] purchase-api/get-encourage-input)
+  (GET "/encourage/input" [] purchase-api/get-encourage-input)
   (POST "/encourage" [] purchase-api/post-encourage-json)
-  (POST "/loginfo" [] log-api/api-loginfo)
+  (POST "/release" [] release-api/release)
+  (POST "/login" [] log-api/api-login)
+  (GET "/checklogin" [] checklogin-api/check-log-status)
+  (GET "/logout" [] log-api/api-logout)
   (route/not-found "Not Found"))
 ;; (def app
 ;;   (wrap-defaults app-routes api-defaults))
 (def app
   (-> app-routes
       (wrap-json-body)
-      (wrap-defaults api-defaults)))
+      (wrap-defaults api-defaults)
+      (session/wrap-noir-session
+       {:store (memory-store)})))
 ;; site-defaults 开启CSRF保护
 (run-jetty app {:port 3003})

@@ -1,11 +1,46 @@
 (ns hello-world.api.purchase
   (require [clj-http.client :as http])
   (require [cheshire.core :as cjson])
+  (require [clj-time.local :as l])
+  (require [clj-time.coerce :as ct])
+  (require [noir.session :as session])
   (require [hello-world.common.response :as response])
   (require [hello-world.common.dml :as dml])
-  (require [hello-world.api.check-login :as check])
+  (require [hello-world.api.check-login :as checklogin-api])
   (use [ring.middleware.json :only [wrap-json-body]])
   )
+
+(defn generateUnlogResp
+  []
+  (response/json {
+                  "status" false,
+                  "islogin" false,
+                  "data" {
+                          "result" "fail",
+                          "data" "please login!"
+                          }
+                  }))
+
+(defn update-event
+  [uid input output]
+  (let [timestamp (ct/to-timestamp (l/local-now))
+        事件类型 (get input "type")
+        股票代码 (get input "股票代码")
+        公告日期 (get input "公告日期")
+        父进程日期 (if (clojure.string/blank? (get input "父进程日期"))
+                     公告日期
+                     (get input "父进程日期"))
+        ]
+
+    (dml/insert :event {:uid uid
+                        :timestamp  (ct/to-timestamp (l/local-now))
+                        :事件类型 事件类型
+                        :股票代码 股票代码
+                        :公告日期 公告日期
+                        :父进程公告日期 父进程日期
+                        :input (dml/str->pgobject "json" (cjson/generate-string input))
+                        :output (dml/str->pgobject "json" (cjson/generate-string output))
+                        }) ))
 
 (defn send-purchase-json
   [req]
@@ -80,17 +115,17 @@
      "承诺业绩" [
                  {
                   "key" 1
-                  "时间" "201701"
+                  "时间" "2017"
                   "净利润" 78000000
                   }
                  {
                   "key" 2
-                  "时间" "201801"
+                  "时间" "2018"
                   "净利润" 95000000
                   }
                  {
                   "key" 3
-                  "时间" "201512"
+                  "时间" "2015"
                   "净利润" 117500000
                   }
                  ]
@@ -138,27 +173,31 @@
 
 
 (defn generateResp
-  [req req-data resp]
+  [uid req-data resp]
   (spit "/tmp/evt.json" req-data)
   (spit "/tmp/pp-resp.json" (get resp :body))
   (let [
         body (:body resp)
         ]
 
-    (response/json (cjson/parse-string body))
+    (update-event uid req-data (cjson/parse-string body) )
+    (response/json (assoc (cjson/parse-string body) :islogin true))
     )  )
 
 (defn post-purchase-json
   [req]
-
-  (let [
-        req-data (:body req)
-        secucode (get req-data "股票代码")
-        type (get req-data "type")
-        resp (http/post "https://beta.joudou.com/stockinfogate/commonapi"  {:form-params {:secucode secucode :name "eventproc" :evt (cjson/generate-string req-data)} :content-type :json} )
-        ]
-    (generateResp req req-data resp)
+  (if-let [uid (session/get :user)]
+    (let [
+          req-data (:body req)
+          secucode (get req-data "股票代码")
+          type (get req-data "type")
+          resp (http/post "https://url/stockinfogate/commonapi"  {:form-params {:secucode secucode :name "eventproc" :evt (cjson/generate-string req-data)} :content-type :json} )
+          ]
+      (generateResp uid req-data resp)
+      )
+    (generateUnlogResp)
     )
+
   )
 
 (defn get-merge-input
@@ -239,7 +278,8 @@
   (let [req-data (:form-params req)
         type (get req-data "type")]
     (response/json {
-                    "status" true
+                    "status" true,
+                    "islogin" true,
                     "data" {
                             "result" "ok",
                             "data" increase-input
@@ -249,42 +289,51 @@
 
 (defn post-increase-json
   [req]
-  (let [
-        req-data (:body req)
-        secucode (get req-data "股票代码")
-        resp (http/post "https://url/stockinfogate/commonapi" {:form-params {:secucode secucode :name "eventproc" :evt (cjson/generate-string req-data)} :content-type :json})
-        ]
-    (generateResp req req-data resp)))
+  (if-let [uid (checklogin-api/get-uid)]
+
+    (let [
+          req-data (:body req)
+          secucode (get req-data "股票代码")
+          resp (http/post "https://url/stockinfogate/commonapi" {:form-params {:secucode secucode :name "eventproc" :evt (cjson/generate-string req-data)} :content-type :json})
+          ]
+      (generateResp uid req-data resp))
+    (generateUnlogResp)))
 
 (def holding-input
-  {"公告日期" "2017/07/06",
-   "增减持结束时间" "2017/07/06",
-   "事件简述" "sdfa",
-   "股票概念" "sd",
-   "计划公告日" "2017/07/04",
-   "增减持起始时间" "2017/07/06",
-   "类型" "大股东增持",
-   "股票代码" "002675",
-   "type" "holding",
-   "进程" "预案",
-   "增减持" {
-             "占股比" 2,
-             "股份数量" 12,
-             "金额" 1,
-             "成本价" 234,
-             "增减持状态" "进展",
+  {"type"  "internal",
+   "股票代码" "600687",
+   "记录"  [
+            {
+             "key" 1,
+             "类型" "大股东增持",
+             "公告日期" "2017/07/19",
+             "父进程日期" "2017/05/17",
+             "进程" "进展",
+             "概念" "",
+             "开始日期" "2017/05/16",
+             "截止日期" "2017/07/19",
+             "成本" nil,
+             "数量" 25145689,
+             "金额" nil,
+             "占股比" nil
              }
-   }
+
+            ]}
+
 )
 (defn post-holding-json
   [req]
-  (let [
-        req-data (:body req)
-        secucode (get req-data "股票代码")
-        ;;resp (http/post "https://url/stockinfogate/commonapi" {:form-params {:secucode secucode :name "eventproc" :evt (cjson/generate-string req-data)} :content-type :json})
-        ]
-    (spit "/tmp/evt.json" req-data)
-    (response/json sample-input)))
+  (if-let [uid (checklogin-api/get-uid)]
+
+    (let [
+          body (:body req)
+          req-data (get body "submit")
+          secucode (get req-data "股票代码")
+          resp (http/post "https://url/stockinfogate/commonapi" {:form-params {:secucode secucode :name "eventproc" :evt (cjson/generate-string req-data)} :content-type :json})
+          ]
+      (spit "/tmp/evt.json" req-data)
+      (generateResp uid req-data resp))
+    (generateUnlogResp)))
 
 (defn get-holding-input
   [req]
@@ -343,13 +392,15 @@
 
 (defn post-encourage-json
   [req]
-  (let [
-        req-data (:body req)
-        secucode (get req-data "股票代码")
-        ;;resp (http/post "https://url/stockinfogate/commonapi" {:form-params {:secucode secucode :name "eventproc" :evt (cjson/generate-string req-data)} :content-type :json})
-        ]
-    (spit "/tmp/evt.json" req-data)
-    (response/json sample-input)))
+  (if-let [uid (checklogin-api/get-uid)]
+    (let [
+          req-data (:body req)
+          secucode (get req-data "股票代码")
+          resp (http/post "https://url/stockinfogate/commonapi" {:form-params {:secucode secucode :name "eventproc" :evt (cjson/generate-string req-data)} :content-type :json})
+          ]
+      (spit "/tmp/evt.json" req-data)
+      (generateResp uid req-data resp))
+    (generateUnlogResp)))
 
 (defn get-encourage-input
   [req]

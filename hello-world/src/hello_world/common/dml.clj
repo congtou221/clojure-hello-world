@@ -1,7 +1,18 @@
 (ns hello-world.common.dml
   (require [clojure.java.jdbc :as jdbc])
   (require [honeysql.core :as sql])
-  (require [hello-world.common.db :as db]))
+  (require [hello-world.common.db :as db])
+  (import org.postgresql.util.PGobject))
+
+(defn str->pgobject
+  [type value]
+  (doto (PGobject.)
+    (.setType type)
+    (.setValue value)))
+
+(defn pgobject->str
+  [value]
+  (.getValue value))
 
 (defn insert
   [table data]

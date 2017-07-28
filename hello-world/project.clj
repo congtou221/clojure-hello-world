@@ -18,7 +18,9 @@
                  [ring-json-response "0.2.0"]
                  [ring/ring-jetty-adapter "1.5.0"]
                  [compojure "1.5.0"]
-                 [buddy "1.3.0"]]
+                 [buddy "1.3.0"]
+                 [clj-time "0.11.0"]
+                 [lib-noir "0.9.9"]]
   :ring {:handler hello-world.core/app :nrepl {:start? true :port 9999}}
   :plugins [[lein-ring "0.9.7"]]
   :main hello-world.core)
