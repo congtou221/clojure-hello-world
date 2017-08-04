@@ -4,7 +4,8 @@
             [noir.session :as session]
             [hello-world.common.response :as response]
             [hello-world.common.dml :as dml]
-            [hello-world.api.check-login :as checklogin-api]))
+            [hello-world.api.check-login :as checklogin-api]
+            [hello-world.api.record :as record-api]))
 
 (defn query-lastevent
   [uid req-data]
@@ -93,22 +94,60 @@
                           }
                   }))
 
+(defn judge
+  [item1 item2 equals]
+  (if (and (empty? item1) (empty? item2))
+    true
+    (if (empty? equals)
+      false
+      (not-any? false? equals))))
+
+(defn equal
+  [input last-input]
+  (if (and (map? input) (map? last-input))
+    (let [equals (map (fn [[key value]]
+                        (let [last-value (get last-input key)]
+                          (cond (map? value) (equal value last-value)
+                                (and
+                                 (vector? value)
+                                 (vector? last-value)) (judge value last-value
+                                                              (map (fn [item1 item2]
+                                                                     (equal item1 item2))
+                                                                   value
+                                                                   last-value))
+                                (= key "key") true
+                                (= value last-value) true
+                                :else false)))
+                      input)]
+      (judge input last-input equals))
+    (= input last-input)))
+
+(defn strict-equal
+  [input last-input]
+  (and (equal input last-input) (equal last-input input)))
+
 (defn release
   [req]
   (if-let [uid (checklogin-api/get-uid)]
     (let [req-data (:body req)
           eventinfo (first (query-lastevent uid req-data))
           last-sameevent (first (query-last-sameevent uid eventinfo))]
-
+(clojure.pprint/pprint eventinfo)
       (if (and (not (nil? eventinfo))
-               (not (nil? last-sameevent))
-               )
-        (let [input (cjson/parse-string (dml/pgobject->str (:input eventinfo)))
+               (not (nil? last-sameevent)))
+        (let [id (:id eventinfo)
+              type (:事件类型 eventinfo)
+              secucode (:股票代码 eventinfo)
+              input (cjson/parse-string (dml/pgobject->str (:input eventinfo)))
+              output (cjson/parse-string (dml/pgobject->str (:output eventinfo)))
+              output-data (get (get output "data") "data")
               last-sameevent-input (cjson/parse-string (dml/pgobject->str (:input last-sameevent)))]
-          (if (= input last-sameevent-input)
-            (generateSuccessResp "data")
+          (if (strict-equal input last-sameevent-input)
+            (let [resp (http/post "https://beta.joudou.com/stockinfogate/commonapi" {:form-params {:name "event_pub" :secucode secucode :api-token "d41d8cd98f00b204e9800998ecf8427e" :input-info input :result-info output-data } :content-type :json})]
+              (record-api/insert-record uid id (str "发布" type "事件，股票代码为" secucode))
+              (generateSuccessResp resp))
             (generateReqErrResp "cant find last same record!")
-))
+            ))
         (generateReqErrResp "no record or only one record!")
 ))
     (generateUnlogResp)

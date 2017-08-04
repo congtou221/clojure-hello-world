@@ -7,6 +7,7 @@
   (require [hello-world.common.response :as response])
   (require [hello-world.common.dml :as dml])
   (require [hello-world.api.check-login :as checklogin-api])
+  (require [hello-world.api.record :as record-api])
   (use [ring.middleware.json :only [wrap-json-body]])
   )
 
@@ -20,16 +21,36 @@
                           "data" "please login!"
                           }
                   }))
+(defn get-internal-parentdate
+  [input]
+  (let [
+        records (get input "记录")
+        first-record (first records)
+        parent-date (get first-record "父进程日期")
+        ]
+    (if (clojure.string/blank? parent-date)
+      (get input "公告日期")
+      parent-date)))
+(defn get-internal-date
+  [input]
+  (let [records (get input "记录")]
+    (reduce (fn [prev record]
+              (let [date (get record "公告日期")]
+                (str prev date " ")))
+            ""
+            records)))
 
 (defn update-event
   [uid input output]
   (let [timestamp (ct/to-timestamp (l/local-now))
         事件类型 (get input "type")
         股票代码 (get input "股票代码")
-        公告日期 (get input "公告日期")
-        父进程日期 (if (clojure.string/blank? (get input "父进程日期"))
-                     公告日期
-                     (get input "父进程日期"))
+        公告日期 (if (not= 事件类型 "internal") (get input "公告日期") (get-internal-date input))
+        父进程日期 (if (not= 事件类型 "internal")
+                       (if (clojure.string/blank? (get input "父进程日期"))
+                         公告日期
+                         (get input "父进程日期"))
+                       (get-internal-parentdate input))
         ]
 
     (dml/insert :event {:uid uid
@@ -42,6 +63,18 @@
                         :output (dml/str->pgobject "json" (cjson/generate-string output))
                         }) ))
 
+(defn query-event-id
+  [uid input]
+  (->> {:select [:id]
+        :from [:event]
+        :where [:and
+                [:= :uid uid]
+                ;;[:= :input input]
+                ]
+        :order-by [[:id :desc]]
+        :limit 1}
+       (dml/query)))
+
 (defn send-purchase-json
   [req]
   (response/json {:status true}))
@@ -49,6 +82,7 @@
 ;;hello-world.common.dml已调整
 (def sample-input
   {
+   "type" "merge"
    "股票代码" "002675"
    "公告日期" "2017/06/30"
    "进程" "预案"
@@ -72,7 +106,7 @@
                        "配募股价" nil
                        "配募方" [
                                  {
-                                  "key" 1
+                                  "key" 2
                                   "认购金额" 743000000
                                   "认购股份数" nil
                                   "股东名称" "待定"
@@ -176,11 +210,14 @@
   [uid req-data resp]
   (spit "/tmp/evt.json" req-data)
   (spit "/tmp/pp-resp.json" (get resp :body))
-  (let [
-        body (:body resp)
-        ]
-
+  (let [body (:body resp)]
     (update-event uid req-data (cjson/parse-string body) )
+
+    (let [id (:id (first (query-event-id uid req-data)))
+          secucode (get req-data "股票代码")
+          type (get req-data "type")]
+      (record-api/insert-record uid id (str "上传" type "事件，股票代码为" secucode)))
+
     (response/json (assoc (cjson/parse-string body) :islogin true))
     )  )
 
@@ -191,30 +228,35 @@
           req-data (:body req)
           secucode (get req-data "股票代码")
           type (get req-data "type")
-          resp (http/post "https://url/stockinfogate/commonapi"  {:form-params {:secucode secucode :name "eventproc" :evt (cjson/generate-string req-data)} :content-type :json} )
+          resp (http/post "https://beta.joudou.com/stockinfogate/commonapi"  {:form-params {:secucode secucode :name "eventproc" :evt (cjson/generate-string req-data)} :content-type :json} )
           ]
+
       (generateResp uid req-data resp)
       )
     (generateUnlogResp)
-    )
-
-  )
+    ))
 
 (defn get-merge-input
   [req]
-  (let [req-data (:form-params req)
-        type (get req-data "type")]
-    (response/json {
-                    "status" true
-                    "data" {
-                            "result" "ok",
-                            "data" sample-input
-                            }
-                    }
-                   )))
+
+  (if-let [uid (checklogin-api/get-uid)]
+
+    (let [req-data (:form-params req)
+          type (get req-data "type")]
+     ; (record-api/insert-record uid 1 "回填并购数据")
+      (response/json {
+                      "status" true
+                      "data" {
+                              "result" "ok",
+                              "data" sample-input
+                              }
+                      }
+                     ))
+    (generateUnlogResp)))
 
 (def increase-input
   {
+   "type" "pp"
    "公告日期" "2017/07/14",
    "股票代码" "600127",
    "进程" "预案",
@@ -273,19 +315,24 @@
                ]
    })
 
+
 (defn get-increase-input
   [req]
-  (let [req-data (:form-params req)
-        type (get req-data "type")]
-    (response/json {
-                    "status" true,
-                    "islogin" true,
-                    "data" {
-                            "result" "ok",
-                            "data" increase-input
-                            }
-                    }
-                   )))
+  (if-let [uid (checklogin-api/get-uid)]
+
+    (let [req-data (:form-params req)
+          type (get req-data "type")]
+;;      (record-api/insert-record uid 0 "回填定增数据")
+      (response/json {
+                      "status" true,
+                      "islogin" true,
+                      "data" {
+                              "result" "ok",
+                              "data" increase-input
+                              }
+                      }
+                     ))
+    (generateUnlogResp)))
 
 (defn post-increase-json
   [req]
@@ -294,33 +341,68 @@
     (let [
           req-data (:body req)
           secucode (get req-data "股票代码")
-          resp (http/post "https://url/stockinfogate/commonapi" {:form-params {:secucode secucode :name "eventproc" :evt (cjson/generate-string req-data)} :content-type :json})
+          resp (http/post "https://beta.joudou.com/stockinfogate/commonapi" {:form-params {:secucode secucode :name "eventproc" :evt (cjson/generate-string req-data)} :content-type :json})
           ]
+
       (generateResp uid req-data resp))
     (generateUnlogResp)))
 
 (def holding-input
-  {"type"  "internal",
-   "股票代码" "600687",
-   "记录"  [
-            {
-             "key" 1,
-             "类型" "大股东增持",
-             "公告日期" "2017/07/19",
-             "父进程日期" "2017/05/17",
-             "进程" "进展",
-             "概念" "",
-             "开始日期" "2017/05/16",
-             "截止日期" "2017/07/19",
-             "成本" nil,
-             "数量" 25145689,
-             "金额" nil,
-             "占股比" nil
-             }
 
-            ]}
+  ;; {"type"  "internal",
+  ;;  "股票代码" "600687",
+  ;;  "记录"  [
+  ;;           {
+  ;;            "key" 1,
+  ;;            "类型" "大股东增持",
+  ;;            "公告日期" "2017/07/19",
+  ;;            "父进程日期" "2017/05/17",
+  ;;            "进程" "进展",
+  ;;            "概念" "",
+  ;;            "开始日期" "2017/05/16",
+  ;;            "截止日期" "2017/07/19",
+  ;;            "成本" nil,
+  ;;            "数量" 25145689,
+  ;;            "金额" nil,
+  ;;            "占股比" nil
+  ;;            },
+  ;;           {
+  ;;            "key" 1,
+  ;;            "类型" "大股东增持",
+  ;;            "公告日期" "2017/07/19",
+  ;;            "父进程日期" "2017/05/17",
+  ;;            "进程" "进展",
+  ;;            "概念" "",
+  ;;            "开始日期" "2017/05/16",
+  ;;            "截止日期" "2017/07/19",
+  ;;            "成本" nil,
+  ;;            "数量" 25145689,
+  ;;            "金额" nil,
+  ;;            "占股比" nil
+  ;;            }
 
-)
+  ;;           ]}
+
+  {
+   "type" "internal",
+   "股票代码" "002310",
+   "记录" [
+           {"key" 1,
+            "类型" "员工持股计划",
+            "公告日期" "2017/07/11",
+            "父进程日期" "2017/04/08",
+            "进程" "进展",
+            "概念" "",
+            "开始日期" "2017/04/08",
+            "截止日期" "2017/07/10",
+            "成本" 15.96,
+            "数量" 92474622,
+            "金额" 1476347463.33,
+            "占股比" 3.45
+            }
+           ]
+   }
+  )
 (defn post-holding-json
   [req]
   (if-let [uid (checklogin-api/get-uid)]
@@ -329,22 +411,27 @@
           body (:body req)
           req-data (get body "submit")
           secucode (get req-data "股票代码")
-          resp (http/post "https://url/stockinfogate/commonapi" {:form-params {:secucode secucode :name "eventproc" :evt (cjson/generate-string req-data)} :content-type :json})
+          resp (http/post "https://beta.joudou.com/stockinfogate/commonapi" {:form-params {:secucode secucode :name "eventproc" :evt (cjson/generate-string req-data)} :content-type :json})
           ]
-      (spit "/tmp/evt.json" req-data)
+
       (generateResp uid req-data resp))
     (generateUnlogResp)))
 
 (defn get-holding-input
   [req]
-  (response/json {
-                  "status" true
-                  "data" {
-                          "result" "ok",
-                          "data" holding-input
-                          }
-                  }
-                 ))
+  (if-let [uid (checklogin-api/get-uid)]
+    (do
+;;      (record-api/insert-record uid 0 "回填增减持数据")
+      (response/json {
+                      "status" true
+                      "islogin" true
+                      "data" {
+                              "result" "ok",
+                              "data" holding-input
+                              }
+                      }
+                     ))
+    (generateUnlogResp)))
 
 (def encourage-input
   {
@@ -396,7 +483,7 @@
     (let [
           req-data (:body req)
           secucode (get req-data "股票代码")
-          resp (http/post "https://url/stockinfogate/commonapi" {:form-params {:secucode secucode :name "eventproc" :evt (cjson/generate-string req-data)} :content-type :json})
+          resp (http/post "https://beta.joudou.com/stockinfogate/commonapi" {:form-params {:secucode secucode :name "eventproc" :evt (cjson/generate-string req-data)} :content-type :json})
           ]
       (spit "/tmp/evt.json" req-data)
       (generateResp uid req-data resp))
@@ -404,11 +491,16 @@
 
 (defn get-encourage-input
   [req]
-  (response/json {
-                  "status" true
-                  "data" {
-                          "result" "ok",
-                          "data" encourage-input
-                          }
-                  }
-                 ))
+  (if-let [uid (checklogin-api/get-uid)]
+    (do
+  ;;    (record-api/insert-record uid 0 "回填激励数据")
+      (response/json {
+                      "status" true
+                      "islogin" true
+                      "data" {
+                              "result" "ok",
+                              "data" encourage-input
+                              }
+                      }
+                     ))
+    (generateUnlogResp)))

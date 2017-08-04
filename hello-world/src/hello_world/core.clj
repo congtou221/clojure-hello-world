@@ -6,8 +6,10 @@
             [noir.session :as session]
             [hello-world.api.purchase :as purchase-api]
             [hello-world.api.release :as release-api]
-            [hello-world.api.log :as log-api]
-            [hello-world.api.check-login :as checklogin-api])
+            [hello-world.api.login :as login-api]
+            [hello-world.api.check-login :as checklogin-api]
+            [hello-world.api.record :as record-api]
+            [hello-world.api.input :as input-api])
   (:use [ring.adapter.jetty]
         [ring.middleware.json :only [wrap-json-body]]))
 
@@ -29,6 +31,7 @@
 (defroutes app-routes
   (GET "/" [] "Hello World")
   (GET "/test" [] purchase-api/send-purchase-json)
+  (GET "/input" [] input-api/get-input)
   (GET "/merge/input" [] purchase-api/get-merge-input)
   (POST "/test2" [] purchase-api/post-purchase-json)
   (GET "/increase/input" [] purchase-api/get-increase-input)
@@ -38,9 +41,10 @@
   (GET "/encourage/input" [] purchase-api/get-encourage-input)
   (POST "/encourage" [] purchase-api/post-encourage-json)
   (POST "/release" [] release-api/release)
-  (POST "/login" [] log-api/api-login)
+  (POST "/login" [] login-api/api-login)
   (GET "/checklogin" [] checklogin-api/check-log-status)
-  (GET "/logout" [] log-api/api-logout)
+  (GET "/logout" [] login-api/api-logout)
+  (GET "/records" [] record-api/query-record)
   (route/not-found "Not Found"))
 ;; (def app
 ;;   (wrap-defaults app-routes api-defaults))
