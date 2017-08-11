@@ -123,8 +123,8 @@
      "key" 1
      "上市公司" false
      "名称" "安迪科"
-     "行业" "医疗"
-     "概念" "医疗"
+ ;;    "行业" "医疗"
+ ;;    "概念" "医疗"
      "收购价格" 1600000000
      "支付现金" 776795200
      "收购比例" 100
@@ -213,10 +213,11 @@
   (let [body (:body resp)]
     (update-event uid req-data (cjson/parse-string body) )
 
-    (let [id (:id (first (query-event-id uid req-data)))
-          secucode (get req-data "股票代码")
-          type (get req-data "type")]
-      (record-api/insert-record uid id (str "上传" type "事件，股票代码为" secucode)))
+    ;; (let [id (:id (first (query-event-id uid req-data)))
+    ;;       secucode (get req-data "股票代码")
+    ;;       type (get req-data "type")]
+    ;;   (record-api/insert-record uid id (str "上传成功！事件类型为" type "，股票代码为" secucode))
+    ;;   )
 
     (response/json (assoc (cjson/parse-string body) :islogin true))
     )  )
@@ -349,40 +350,6 @@
 
 (def holding-input
 
-  ;; {"type"  "internal",
-  ;;  "股票代码" "600687",
-  ;;  "记录"  [
-  ;;           {
-  ;;            "key" 1,
-  ;;            "类型" "大股东增持",
-  ;;            "公告日期" "2017/07/19",
-  ;;            "父进程日期" "2017/05/17",
-  ;;            "进程" "进展",
-  ;;            "概念" "",
-  ;;            "开始日期" "2017/05/16",
-  ;;            "截止日期" "2017/07/19",
-  ;;            "成本" nil,
-  ;;            "数量" 25145689,
-  ;;            "金额" nil,
-  ;;            "占股比" nil
-  ;;            },
-  ;;           {
-  ;;            "key" 1,
-  ;;            "类型" "大股东增持",
-  ;;            "公告日期" "2017/07/19",
-  ;;            "父进程日期" "2017/05/17",
-  ;;            "进程" "进展",
-  ;;            "概念" "",
-  ;;            "开始日期" "2017/05/16",
-  ;;            "截止日期" "2017/07/19",
-  ;;            "成本" nil,
-  ;;            "数量" 25145689,
-  ;;            "金额" nil,
-  ;;            "占股比" nil
-  ;;            }
-
-  ;;           ]}
-
   {
    "type" "internal",
    "股票代码" "002310",
@@ -400,6 +367,7 @@
             "金额" 1476347463.33,
             "占股比" 3.45
             }
+
            ]
    }
   )

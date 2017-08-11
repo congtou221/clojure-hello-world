@@ -9,7 +9,8 @@
             [hello-world.api.login :as login-api]
             [hello-world.api.check-login :as checklogin-api]
             [hello-world.api.record :as record-api]
-            [hello-world.api.input :as input-api])
+            [hello-world.api.input :as input-api]
+            [hello-world.api.basicinfo :as basicinfo-api])
   (:use [ring.adapter.jetty]
         [ring.middleware.json :only [wrap-json-body]]))
 
@@ -45,6 +46,7 @@
   (GET "/checklogin" [] checklogin-api/check-log-status)
   (GET "/logout" [] login-api/api-logout)
   (GET "/records" [] record-api/query-record)
+  (GET "/companyinfo" [] basicinfo-api/query-companyinfo)
   (route/not-found "Not Found"))
 ;; (def app
 ;;   (wrap-defaults app-routes api-defaults))

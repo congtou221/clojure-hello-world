@@ -13,7 +13,10 @@
         type (get req-data "type")
         date (get req-data "date")
         parent-date (get req-data "parentdate")]
-
+    (clojure.pprint/pprint secucode)
+    (clojure.pprint/pprint type)
+    (clojure.pprint/pprint date)
+    (clojure.pprint/pprint parent-date)
     (->> {:select [
                    :uid
                    :id
@@ -144,11 +147,22 @@
               last-sameevent-input (cjson/parse-string (dml/pgobject->str (:input last-sameevent)))]
           (if (strict-equal input last-sameevent-input)
             (let [resp (http/post "https://beta.joudou.com/stockinfogate/commonapi" {:form-params {:name "event_pub" :secucode secucode :api-token "d41d8cd98f00b204e9800998ecf8427e" :input-info input :result-info output-data } :content-type :json})]
-              (record-api/insert-record uid id (str "发布" type "事件，股票代码为" secucode))
+              (record-api/insert-record uid id (str "发布成功！事件类型为" type "，股票代码为" secucode))
               (generateSuccessResp resp))
-            (generateReqErrResp "cant find last same record!")
+            (do
+              (record-api/insert-record uid id (str "发布失败！本次录入的数据与上一次不一致，事件类型为" type "，股票代码为" secucode))
+              (generateReqErrResp "cant find last same record!"))
             ))
-        (generateReqErrResp "no record or only one record!")
+        (if (not (nil? eventinfo))
+          (let [id (:id eventinfo)
+                type (:事件类型 eventinfo)
+                secucode (:股票代码 eventinfo)]
+            (do
+              (record-api/insert-record uid id (str "发布失败！未找到上一次录入的数据，事件类型为" type "，股票代码为" secucode))
+              (generateReqErrResp "no record or only one record!")))
+          (do
+            (record-api/insert-record uid 0 (str "发布失败！事件录入有误"  ))
+            (generateReqErrResp "wrong formatted input!")))
 ))
     (generateUnlogResp)
 
